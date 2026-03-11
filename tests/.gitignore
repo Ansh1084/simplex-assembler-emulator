@@ -1,0 +1,6 @@
+*.exe
+assembler
+emulator
+*.o
+*.out
+*.zip
