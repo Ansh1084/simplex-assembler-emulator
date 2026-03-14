@@ -1,0 +1,109 @@
+### `claims` (text file content)
+
+Author: Ansh Goyal
+Roll No: 2401cs46
+
+Assembler – SIMPLEX
+
+1. Implements a two-pass assembler:
+   Pass 1 parses the program, removes comments, detects labels, validates syntax and builds the symbol table.
+   Pass 2 resolves operands and generates machine code.
+
+2. Accepts assembly programs with labels, mnemonics and operands with flexible spacing, and ignores comments beginning with ';'.
+
+3. Supports decimal, hexadecimal (0x), and octal (0o) integer operands, converting them to signed 32-bit values during assembly.
+
+4. Supports multiple labels on the same line, assigning all of them the same instruction address.
+
+5. Validates label names:
+   - first character must be alphabetic
+   - remaining characters must be alphanumeric.
+
+6. Detects and reports the following errors:
+   - unknown instructions
+   - duplicate label definitions
+   - invalid label names
+   - missing operands
+   - extra operands
+   - invalid operands
+   - undefined labels
+   - invalid numbers
+   - operand overflow outside the allowed range.
+
+7. Tracks label usage and reports unused labels as warnings.
+
+8. Supports pseudo-instructions:
+   - SET to assign a value to a label
+   - data to emit raw data words.
+
+9. Generates instructions in the SIMPLEX 32-bit format:
+   | 24-bit signed operand | 8-bit opcode |
+
+10. Computes relative branch offsets for control-flow instructions (call, br, brz, brlz) using:
+    target − (PC + 1)
+
+11. Verifies that encoded operands fit within the signed 24-bit range required by the SIMPLEX instruction format.
+
+12. Maintains a symbol table mapping labels to addresses and outputs it to a .sym file.
+
+13. Produces a .log file listing all errors and warnings detected during assembly.
+
+14. Generates a .lst listing file containing instruction address, machine code and source line when no errors are present.
+
+15. Generates a binary object file (.o) containing the sequence of 32-bit machine words.
+
+16. Skips blank lines and comment-only lines during assembly while preserving source line numbering for diagnostics.
+
+Emulator – SIMPLEX
+
+1. Loads the binary object file (.o) into a fixed-size memory array and treats each 32-bit word as an instruction or data.
+
+2. Maintains machine state consisting of four registers:
+   - accumulator A
+   - register B
+   - program counter (PC)
+   - stack pointer (SP).
+
+3. Uses a fixed memory size of 200000 32-bit words to simulate SIMPLEX main memory.
+
+4. Decodes each instruction using bit operations:
+   opcode = instruction & 0xFF
+   operand = instruction >> 8
+
+5. Executes the full SIMPLEX instruction set:
+   ldc, adc, ldl, stl, ldnl, stnl, add, sub, shl, shr, adj, a2sp, sp2a,
+   call, return, brz, brlz, br, HALT.
+
+6. Implements stack-relative and register-relative addressing used by
+   ldl, stl, ldnl and stnl instructions.
+
+7. Checks all memory accesses for out-of-range addresses and prints
+   "MEMORY ACCESS VIOLATION" instead of allowing invalid memory access.
+
+8. Checks stack pointer updates and detects stack overflow or underflow
+   conditions during stack adjustment operations.
+
+10. Provides a trace mode (-trace) that prints the current PC, SP,
+    register values and decoded instruction for every execution step.
+
+11. Supports a memory dump feature that writes the first 8000 memory
+    words and final register contents to a text file.
+
+12. Allows memory dumps before execution (-before) and after execution
+    (-after).
+
+13. Prints the SIMPLEX instruction set and opcode table when run with
+    the -isa command-line option.
+
+14. Stops execution when one of the following conditions occurs:
+    - HALT instruction is executed
+    - program counter exceeds the loaded program size
+    - program counter goes outside memory bounds
+    - memory access violation occurs
+    - stack overflow or underflow is detected
+    - instruction execution limit (100000 instructions) is exceeded.
+
+15. After execution, reports the total number of instructions executed.
+
+16. Creates a .log file reporting warnings such as infinite loop
+    detection when the instruction limit is exceeded.
