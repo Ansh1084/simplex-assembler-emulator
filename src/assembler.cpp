@@ -19,13 +19,13 @@ map<string, int> symbolTable; // label->address
 vector<pair<int, string>> ErrorList;
 vector<pair<int, string>> WarningList;
 map<string, bool> LabelDefined;
+map<string,bool> LabelUsed;
 map<int, string> Object_Code; // line-> machine code 
 map<int, int> line_To_address; // line ->Pc
 
 map<int, pair<bool,bool>> Line_Info; // stores has_Label,has_Instruction
 vector<string> Line_Label(6000000);                     
 map<int, string> Source_Line;
-vector<string> data_section;
 string filename;
 int pc = 0;
 
@@ -33,10 +33,10 @@ void opcodes(){
     Opcode_Table["data"] = {-1, 1}; // opcode number, type
     Opcode_Table["ldc"] = {0, 1};
     Opcode_Table["adc"] = {1, 1};
-    Opcode_Table["ldl"] = {2, 2};
-    Opcode_Table["stl"] = {3, 2};
-    Opcode_Table["ldnl"] = {4, 2};
-    Opcode_Table["stnl"] = {5, 2};
+    Opcode_Table["ldl"] = {2, 1};
+    Opcode_Table["stl"] = {3, 1};
+    Opcode_Table["ldnl"] = {4, 1};
+    Opcode_Table["stnl"] = {5, 1};
     Opcode_Table["add"] = {6, 0};
     Opcode_Table["sub"] = {7, 0};
     Opcode_Table["shl"] = {8, 0};
@@ -69,14 +69,14 @@ bool valid_label(string Line_Label){
     if (Line_Label.empty()){
         return false;
     }
-    // First character must be letter or underscore
-    if (!isalpha(Line_Label[0]) && Line_Label[0] != '_'){
+    // First character must be letter
+    if (!isalpha(Line_Label[0])){
         return false;
     }
     // Remaining characters
     size_t n=Line_Label.size();
-    fr(i,0,n){
-        if (!isalnum(Line_Label[i]) && Line_Label[i] != '_'){
+    fr(i,1,n){
+        if (!isalnum(Line_Label[i])){
             return false;
         }
     }
@@ -95,15 +95,14 @@ string trim(string &s) {
     s=s.substr(start, end-start);
     return s;
 }
-string integer_to_hexa(string numberStr, int n){
-    int decimal = stoi(numberStr);
+string integer_to_hexa(int32_t decimal, int n){
+    uint32_t u_dec = static_cast<uint32_t>(decimal);
     string result = "";
     string hexChars = "0123456789ABCDEF";
-    n=size_t(n);
     fr(i,0,n){
-        int remainder=decimal%16;
-        result=hexChars[remainder]+result;
-        decimal=decimal/16;
+        int remainder = u_dec % 16;
+        result = hexChars[remainder] + result;
+        u_dec = u_dec / 16;
     }
     return result;
 }
@@ -166,7 +165,6 @@ void Pass_One(string line, int num){
     //trim leading and trailing whitespaces
     line=trim(line);
     Line_Info[num] = {0, 0};
-    line_To_address[num] = pc; // Track PC here so label-only lines show correct address in .lst
     if (!line.empty()){
         // detect Line_Label
         bool label_detect=0;
@@ -188,11 +186,10 @@ void Pass_One(string line, int num){
                 ErrorList.push_back({num, "INVALID LABEL NAME"});
             }
             else{
-                if(LabelDefined[lab]){
+                if(symbolTable.find(lab) != symbolTable.end()){
                     ErrorList.push_back({num, "REDECLARATION OF LABEL"});
                 }
                 else{
-                    LabelDefined[lab] = 1;
                     symbolTable[lab] = pc;
                     Line_Info[num].first = 1;
                 }
@@ -229,6 +226,11 @@ void Pass_One(string line, int num){
             return;
         }
         int operandType=Opcode_Table[INSTRUCTION[0]].second;
+        if (INSTRUCTION.size() > 2) {
+            ErrorList.push_back({num, "EXTRA ON END OF LINE"});
+            return;
+        }
+        
         if (operandType==0){ 
             if (INSTRUCTION.size()!=1){
                 ErrorList.push_back({num, "WRONG OPERAND TYPE"});
@@ -251,6 +253,17 @@ void Pass_One(string line, int num){
             ErrorList.push_back({num, "INVALID INSTRUCTION FORMAT"});
             return;
         }
+        
+        // Pass 1 basic validation for operand type 1 and 2
+        if (operandType == 1 || operandType == 2) {
+            string op = INSTRUCTION[1];
+            if (!valid_label(op) && !is_valid_number(op)) {
+                ErrorList.push_back({num, "INVALID OPERAND"});
+                Line_Info[num].second = 0; // Prevent evaluating in Pass Two
+                return;
+            }
+        }
+        
         Line_Info[num].second = 1;
         line_To_address[num] = pc;
         instruction[num].first = INSTRUCTION[0];
@@ -260,7 +273,9 @@ void Pass_One(string line, int num){
         else{
             instruction[num].second = INSTRUCTION[1];
         }
-        pc++;
+        if(INSTRUCTION[0]!="SET"){
+            pc++;
+        }
     }
 }
 void Pass_Two(){
@@ -279,14 +294,16 @@ void Pass_Two(){
             string op = instruction[lineNo].second;
             if (symbolTable.find(op)!=symbolTable.end()){
                 operand = symbolTable[op];
+                LabelUsed[op] = true;
             }
             else if(is_valid_number(op)){
-                if(op.substr(0,2)=="0o"){
-                    operand = stoi(op.substr(2), nullptr, 8);
+                char *endptr;
+                long value = strtol(op.c_str(),&endptr,0);
+                if (*endptr !='\0') {
+                    ErrorList.push_back({lineNo, "NOT A NUMBER"});
+                    continue;
                 }
-                else{
-                    operand = stoi(op, nullptr, 0);
-                }
+                operand = (int32_t)value;
             }
             else{
                 string diag = "UNDEFINED LABEL: '";
@@ -299,28 +316,31 @@ void Pass_Two(){
             string op = instruction[lineNo].second;
             if (symbolTable.find(op) != symbolTable.end()){
                 int target = symbolTable[op];
+                LabelUsed[op] = true;
                 int currentPC = line_To_address[lineNo];
                 operand = target - (currentPC + 1);
+                if(operand == -1){
+                    WarningList.push_back({lineNo, "POSSIBLE INFINITE LOOP"});
+                }
             }
-            else if (is_valid_number(op)){
-                operand = stoi(op, nullptr, 0);
+            else if(is_valid_number(op)){
+                char *endptr;
+                long value = strtol(op.c_str(),&endptr,0);
+                if (*endptr !='\0') {
+                    ErrorList.push_back({lineNo, "NOT A NUMBER"});
+                    continue;
+                }
+                operand = (int32_t)value;
             }
             else{
-                ErrorList.push_back({lineNo, "INVALID OPERAND"});
+                ErrorList.push_back({lineNo, "NO SUCH LABEL"});
                 continue;
             }
         }
 
         // Pseudo Instructions: SET AND DATA HANDLING
         if(opcode < 0){
-            if(command == "data"){
-                data_section.push_back(
-                    integer_to_hexa(to_string(operand), 8)
-                );
-            }
-            else{ // SET
-                Object_Code[lineNo] = integer_to_hexa(to_string(operand), 8);
-            }
+            Object_Code[lineNo] = integer_to_hexa(operand, 8);
             continue;
         }
         // 24-bit Overflow Check 
@@ -329,7 +349,7 @@ void Pass_Two(){
             continue;
         }
         // Build Instruction 
-        Object_Code[lineNo] = integer_to_hexa(to_string(operand), 6) + integer_to_hexa(to_string(opcode), 2);
+        Object_Code[lineNo] = integer_to_hexa(operand, 6) + integer_to_hexa(opcode, 2);
     }
 }
 
@@ -339,13 +359,9 @@ void print_errors(){
     }
 }
 void print_warnings(){
-    if(!WarningList
-    .empty()){
-        fr(i,0,WarningList
-        .size()){
-            cout<<"LINE NUMBER "<< WarningList
-        [i].first<<":- "<<WarningList
-        [i].second<<endl;
+    if(!WarningList.empty()){
+        fr(i,0,WarningList.size()){
+            cout<<"LINE NUMBER "<< WarningList[i].first<<":- "<<WarningList[i].second<<endl;
         }
     }
 }
@@ -357,14 +373,10 @@ void write_log(){
         cout<<"ERROR: Unable to create log file"<<endl;
         return;
     }
-    if(!WarningList
-    .empty()){
+    if(!WarningList.empty()){
         logfile<<"WARNINGS\n";
-        fr(i,0,WarningList
-        .size()){
-            logfile<<"LINE NUMBER "<<WarningList
-        [i].first<<":- "<<WarningList
-        [i].second<<endl;
+        fr(i,0,WarningList.size()){
+            logfile<<"LINE NUMBER "<<WarningList[i].first<<":- "<<WarningList[i].second<<endl;
         }
         logfile<<endl;
     }
@@ -462,15 +474,15 @@ int main(int argu_cnt, char *argv[]){
 
     file_pointer.close();
 
-    // Stop if Pass One errors 
-    if (!ErrorList.empty()){
-        write_log();
-        return 0;
-    }
-
     // PASS TWO()
     Pass_Two();
-
+    // Detect unused labels
+    for (auto &it : symbolTable){
+        string label = it.first;
+        if (!LabelUsed[label]){
+            WarningList.push_back({0, "UNUSED LABEL: " + label});
+        }
+    }
     // Write log 
     write_log();
 
