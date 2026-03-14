@@ -74,27 +74,6 @@ void memory_dump(string filename){
     memdump.close();
 }
 
-struct Options {
-    bool trace = false;
-    bool before = false;
-    bool after = false;
-    bool isa = false;
-    string filename;
-};
-
-Options parse_args(int argc, char* argv[]){
-    Options opt;
-    fr(i,1,argc){
-        string arg = argv[i];
-        if (arg == "-trace") opt.trace = true;
-        else if (arg == "-before") opt.before = true;
-        else if (arg == "-after") opt.after = true;
-        else if (arg == "-isa") opt.isa = true;
-        else opt.filename = arg;
-    }
-    return opt;
-}
-
 void print_isa(){
     cout<<"Instruction Set Architecture\n\n";
     cout<<"Instruction  Opcode  Operand\n";
@@ -149,8 +128,8 @@ void reset_machine(){
     RUNNING = true;
 }
 
-int execute(const string& filename, int PROGRAM_SIZE, const Options& opt){
-    if(opt.before) memory_dump(filename);
+int execute(const string& filename, int PROGRAM_SIZE, bool trace, bool before, bool after){
+    if(before) memory_dump(filename);
     reset_machine();
     // Mnemonic lookup table
     const char* mnemonics[]={
@@ -192,7 +171,7 @@ int execute(const string& filename, int PROGRAM_SIZE, const Options& opt){
         int32_t operand = instruction >> 8;   // signed shift
         PROG_CNT++;  // move to next instruction
         instruction_count++;
-        if(opt.trace){
+        if(trace){
             cout << "PC: " << integer_to_hexa(PROG_CNT - 1, 8)
                  << "   SP: " << integer_to_hexa(STACK_POINT, 8)
                  << "   A: " << integer_to_hexa(REG_A, 8)
@@ -332,22 +311,31 @@ int execute(const string& filename, int PROGRAM_SIZE, const Options& opt){
         }
     }
 // Memory dump after
-    if(opt.after) memory_dump(filename);
+    if(after) memory_dump(filename);
     cout << instruction_count << " number of instructions executed\n";
     return 0;
 }
 
 int main(int argc, char* argv[]){
-    Options opt = parse_args(argc, argv);
-    if (opt.isa){
+    string filename;
+    bool trace = false, before = false, after = false, isa = false;
+    fr(i,1,argc){
+        string arg = argv[i];
+        if (arg == "-trace") trace = true;
+        else if (arg == "-before") before = true;
+        else if (arg == "-after") after = true;
+        else if (arg == "-isa") isa = true;
+        else filename = arg;
+    }
+    if (isa){
         print_isa();
         return 0;
     }
-    if (opt.filename.empty()){
+    if (filename.empty()){
         cout << "Usage: ./emulator [options] file.o\n";
         return 1;
     }
     int program_size = 0;
-    if (!load_object(opt.filename, program_size)) return 1;
-    return execute(opt.filename, program_size, opt);
+    if (!load_object(filename, program_size)) return 1;
+    return execute(filename, program_size, trace, before, after);
 }
