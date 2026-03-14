@@ -27,7 +27,7 @@ map<int, pair<bool,bool>> Line_Info; // stores has_Label,has_Instruction
 vector<string> Line_Label(6000000);                     
 map<int, string> Source_Line;
 string filename;
-int pc = 0;
+int pc=0;
 
 void opcodes(){
     Opcode_Table["data"] = {-1, 1}; // opcode number, type
@@ -54,13 +54,14 @@ void opcodes(){
 }
 
 bool is_valid_file(int arg_cnt, vector<string>arg){
+
     if (arg_cnt<2){
-        cout << "ERROR: No file provided" << endl;
+        cout<<"ERROR: No file provided"<<endl;
         return false;
     }
-    string fileName = arg[1];
-    if (fileName.find(".asm") == string::npos){
-        cout << "ERROR: INCORRECT FILE FORMAT" << endl;
+    string fileName=arg[1];
+    if (fileName.find(".asm")==string::npos){
+        cout<<"ERROR: INCORRECT FILE FORMAT" << endl;
         return false;
     }
     return true;
@@ -76,18 +77,19 @@ bool valid_label(string Line_Label){
     // Remaining characters
     size_t n=Line_Label.size();
     fr(i,1,n){
-        if (!isalnum(Line_Label[i])){
+        if(!isalnum(Line_Label[i])){
             return false;
         }
     }
     return true;
 }
 string trim(string &s) {
+    // removing trailing whitespaces
     size_t start=0;
     while(start<s.size() && (isspace((unsigned char)s[start]) || s[start]=='\r' || s[start]=='\n' || s[start]=='\t' || s[start]=='\0')){
         start++;
     }
-
+    // removing ending whitespaces
     size_t end=s.size();
     while(end>start&&(isspace((unsigned char)s[end-1]) || s[end-1]=='\r' || s[end-1]=='\n' || s[end-1]=='\t' || s[end-1]=='\0')){
         end--;
@@ -96,13 +98,13 @@ string trim(string &s) {
     return s;
 }
 string integer_to_hexa(int32_t decimal, int n){
-    uint32_t u_dec = static_cast<uint32_t>(decimal);
-    string result = "";
-    string hexChars = "0123456789ABCDEF";
+    uint32_t new_dec=static_cast<uint32_t>(decimal);
+    string result="";
+    string hexChars="0123456789ABCDEF";
     fr(i,0,n){
-        int remainder = u_dec % 16;
-        result = hexChars[remainder] + result;
-        u_dec = u_dec / 16;
+        int remainder=new_dec%16;
+        result=hexChars[remainder]+result;
+        new_dec=new_dec/16;
     }
     return result;
 }
@@ -118,7 +120,7 @@ bool is_valid_number(string s){
     if(start>=s.size()){
         return false;
     }
-    // Hex
+    // checking hex number , char should lie between 0 and 9 and between a and f (inclusive)
     if (s.substr(start,2)=="0x"){
         start+=2;
         if (start>=s.size()) return false;
@@ -131,7 +133,7 @@ bool is_valid_number(string s){
         }
         return true;
     }
-    // Octal (0o)
+    // checking octal number , char should lie between 0 and 7 and between a and f (inclusive)
     if (s.substr(start,2)=="0o"){
         start += 2;
         if (start >= s.size()) return false;
@@ -142,7 +144,7 @@ bool is_valid_number(string s){
         }
         return true;
     }
-    // Decimal
+    // Decimal , char should lie between 0 and 9 (inclusive)
     fr(i,start,s.size()){
         if (s[i]<'0' || s[i]>'9'){
             return false;
@@ -166,19 +168,19 @@ void Pass_One(string line, int num){
     line=trim(line);
     Line_Info[num] = {0, 0};
     if (!line.empty()){
-        // detect Line_Label
+        // detect Line_Label (also checking if multiple label exist in same line)
         while (true) {
             int colon_pos = -1;
-            fr(i,0,line.size()){
+            fr(i,0,line.size()){ // getting position of semicolon :
                 if (line[i] == ':'){
                     colon_pos = i;
                     break;
                 }
             }
             if(colon_pos == -1) break;   // no more labels
-            string lab = line.substr(0, colon_pos);
+            string lab = line.substr(0, colon_pos); // extracting label name before colon
             line_To_address[num] = pc;
-            lab = trim(lab);
+            lab = trim(lab); // removing extra spaces from label name
 
             if(lab.empty()){
                 ErrorList.push_back({num, "INVALID LABEL NAME"});
@@ -206,11 +208,11 @@ void Pass_One(string line, int num){
                 return;
             }
         }
-        // instruction 
+        // fetching instruction 
         vector<string> INSTRUCTION;
         string temp = "";
         fr(i,0,line.size()){
-            if(isspace((unsigned char)line[i]) || line[i]=='\0'){
+            if(isspace((unsigned char)line[i]) || line[i]=='\0'){  // seperating instruction,numbers,etc.
                 if(!temp.empty()){
                     INSTRUCTION.pb(temp);
                     temp="";
@@ -226,16 +228,15 @@ void Pass_One(string line, int num){
         if(INSTRUCTION.empty()){
             return;
         }
-        if (Opcode_Table.find(INSTRUCTION[0]) ==Opcode_Table.end()){
+        if (Opcode_Table.find(INSTRUCTION[0])==Opcode_Table.end()){ // checking unknown instruction
             ErrorList.push_back({num, "UNKNOWN INSTRUCTION"});
             return;
         }
         int operandType=Opcode_Table[INSTRUCTION[0]].second;
-        if (INSTRUCTION.size() > 2) {
+        if (INSTRUCTION.size()>2) { 
             ErrorList.push_back({num, "EXTRA ON END OF LINE"});
             return;
         }
-        
         if (operandType==0){ 
             if (INSTRUCTION.size()!=1){
                 ErrorList.push_back({num, "WRONG OPERAND TYPE"});
@@ -260,7 +261,7 @@ void Pass_One(string line, int num){
         }
         
         // Pass 1 basic validation for operand type 1 and 2
-        if (operandType == 1 || operandType == 2) {
+        if (operandType==1 || operandType==2) {
             string op = INSTRUCTION[1];
             if (!valid_label(op) && !is_valid_number(op)) {
                 ErrorList.push_back({num, "INVALID OPERAND"});

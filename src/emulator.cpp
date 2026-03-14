@@ -120,14 +120,13 @@ bool load_object(const string& filename, int &program_size){
 }
 
 void reset_machine(){
-    ORIGINAL = STACK_POINT;
-    REG_A = 0;
-    REG_B = 0;
-    PROG_CNT = 0;
-    STACK_POINT = ORIGINAL;
-    RUNNING = true;
+    ORIGINAL=STACK_POINT;
+    REG_A=0;
+    REG_B=0;
+    PROG_CNT=0;
+    STACK_POINT=ORIGINAL;
+    RUNNING=true;
 }
-
 int execute(const string& filename, int PROGRAM_SIZE, bool trace, bool before, bool after){
     if(before) memory_dump(filename);
     reset_machine();
@@ -327,11 +326,11 @@ int main(int argc, char* argv[]){
         else if (arg == "-isa") isa = true;
         else filename = arg;
     }
-    if (isa){
+    if(isa){
         print_isa();
         return 0;
     }
-    if (filename.empty()){
+    if(filename.empty()){
         cout << "Usage: ./emulator [options] file.o\n";
         return 1;
     }
