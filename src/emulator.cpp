@@ -14,7 +14,7 @@ typedef pair<int, int> pii;
 #endif
 #define fr(i, a, b) for (size_t i = a; i < b; ++i)
 
-const int MEMORY_SIZE = 1 << 20; // 1M words
+const int MEMORY_SIZE = 2*1e5; 
 //  Registers 
 int32_t REG_A = 0;
 int32_t REG_B = 0;
@@ -53,9 +53,9 @@ void memory_dump(string filename){
         return;
     }
 
-    memdump << "MEMORY (First 100 Words)\n\n";
+    memdump << "MEMORY (First 8000 Words)\n\n";
 
-    fr(i,0,100){
+    fr(i,0,8000){
         // Print address at start of every row
         if(i%8==0){
             memdump << integer_to_hexa(i, 8) << ": ";
@@ -124,6 +124,7 @@ int main(int argc, char* argv[]){
         index++;
     }
     objfile.close();
+    int PROGRAM_SIZE = index; // number of words loaded
     ORIGINAL = STACK_POINT;
 
     REG_A = 0;
@@ -136,10 +137,30 @@ int main(int argc, char* argv[]){
     // Execution
     PROG_CNT = 0;
     RUNNING = true;
+    // Mnemonic lookup table
+    const char* mnemonics[] = {
+        "ldc", "adc", "ldl", "stl", "ldnl", "stnl",
+        "add", "sub", "shl", "shr",
+        "adj", "a2sp", "sp2a",
+        "call", "return",
+        "brz", "brlz", "br",
+        "HALT"
+    };
+    const int NUM_MNEMONICS = 19;
+
     int instruction_count = 0;
+    bool infinite_loop = false;
     while(RUNNING){
+        if (instruction_count > 100000) {
+            infinite_loop = true;
+            break;
+        }
         if (PROG_CNT < 0 || PROG_CNT >= MEMORY_SIZE) {
             cout << "PC OUT OF BOUNDS\n";
+            break;
+        }
+        if (PROG_CNT >= PROGRAM_SIZE) {
+            RUNNING = false;
             break;
         }
         int32_t instruction = MEMORY[PROG_CNT];
@@ -149,11 +170,21 @@ int main(int argc, char* argv[]){
         PROG_CNT++;  // move to next instruction
         instruction_count++;
         if (trace) {
-            cout << "PC:" << integer_to_hexa(PROG_CNT - 1, 8)
-                 << " SP:" << integer_to_hexa(STACK_POINT, 8)
-                 << " A:" << integer_to_hexa(REG_A, 8)
-                 << " B:" << integer_to_hexa(REG_B, 8)
-                 << endl;
+            cout << "PC: " << integer_to_hexa(PROG_CNT - 1, 8)
+                 << "   SP: " << integer_to_hexa(STACK_POINT, 8)
+                 << "   A: " << integer_to_hexa(REG_A, 8)
+                 << "   B: " << integer_to_hexa(REG_B, 8)
+                 << "          ";
+            if (opcode >= 0 && opcode < NUM_MNEMONICS) {
+                cout << mnemonics[opcode];
+                // Instructions that use an operand
+                if (opcode <= 5 || opcode == 10 || opcode == 13 || (opcode >= 15 && opcode <= 17) || opcode == 18) {
+                    cout << " " << operand;
+                }
+            } else {
+                cout << "??? " << opcode;
+            }
+            cout << endl;
         }
         switch (opcode) {
             case 0:  // ldc
@@ -228,7 +259,7 @@ int main(int argc, char* argv[]){
                 break;
 
             case 10:  // adj
-                STACK_POINT -= operand;
+                STACK_POINT += operand;
                 if (STACK_POINT < 0 || STACK_POINT >= MEMORY_SIZE) {
                     cout << "STACK OVERFLOW/UNDERFLOW\n";
                     RUNNING = false;
@@ -287,5 +318,25 @@ int main(int argc, char* argv[]){
         memory_dump(filename);
     }
     cout << instruction_count << " number of instructions executed\n";
+
+    // Write log file with warnings
+    string base = "";
+    for (char c : filename) {
+        if (c == '.') break;
+        base += c;
+    }
+    string logname = base + ".log";
+    ofstream logfile(logname);
+    if (logfile) {
+        logfile << "WARNINGS" << '\n';
+        if (infinite_loop) {
+            logfile << "Infinite loop detected (more than 100000 instructions executed, core dumped)" << '\n';
+        }
+        if (!infinite_loop) {
+            logfile << "None" << '\n';
+        }
+        logfile.close();
+    }
+
     return 0;
 }

@@ -178,6 +178,7 @@ void Pass_One(string line, int num){
         }
         if(label_detect){
             string lab=line.substr(0,colon_pos);
+            line_To_address[num] = pc;
             lab=trim(lab);
             if(lab.empty()){
                 ErrorList.push_back({num, "INVALID LABEL NAME"});
@@ -191,6 +192,7 @@ void Pass_One(string line, int num){
                 }
                 else{
                     symbolTable[lab] = pc;
+                    Line_Label[num] = lab;
                     Line_Info[num].first = 1;
                 }
             }
@@ -279,6 +281,17 @@ void Pass_One(string line, int num){
     }
 }
 void Pass_Two(){
+    // Remove SET labels from symbol table so they're only available after definition
+    for(auto& it: Line_Info){
+        int lineNo = it.first;
+        if(it.second.second != 1) continue;
+        if(instruction[lineNo].first == "SET"){
+            if(Line_Label[lineNo] != ""){
+                symbolTable.erase(Line_Label[lineNo]);
+            }
+        }
+    }
+    // Process all instructions in order
     for(auto& it: Line_Info){
         int lineNo=it.first;
 
@@ -306,10 +319,7 @@ void Pass_Two(){
                 operand = (int32_t)value;
             }
             else{
-                string diag = "UNDEFINED LABEL: '";
-                for (char c : op) diag += std::to_string((int)c) + " ";
-                diag += "' (len " + std::to_string(op.length()) + ")";
-                ErrorList.push_back({lineNo, diag});
+                ErrorList.push_back({lineNo, "UNDEFINED LABEL: " + op});
             }
         }
         else if(operandType==2){
@@ -319,9 +329,6 @@ void Pass_Two(){
                 LabelUsed[op] = true;
                 int currentPC = line_To_address[lineNo];
                 operand = target - (currentPC + 1);
-                if(operand == -1){
-                    WarningList.push_back({lineNo, "POSSIBLE INFINITE LOOP"});
-                }
             }
             else if(is_valid_number(op)){
                 char *endptr;
@@ -339,7 +346,15 @@ void Pass_Two(){
         }
 
         // Pseudo Instructions: SET AND DATA HANDLING
-        if(opcode < 0){
+        if(opcode == -2){ // SET: update symbol table, no object code
+            // Find the label on this line and update its value
+            if(Line_Label[lineNo] != ""){
+                symbolTable[Line_Label[lineNo]] = operand;
+            }
+            Object_Code[lineNo] = integer_to_hexa(operand, 8);
+            continue;
+        }
+        if(opcode == -1){ // data: emit value as object code
             Object_Code[lineNo] = integer_to_hexa(operand, 8);
             continue;
         }
@@ -373,6 +388,9 @@ void write_log(){
         cout<<"ERROR: Unable to create log file"<<endl;
         return;
     }
+    // Sort by line number
+    sort(all(WarningList));
+    sort(all(ErrorList));
     if(!WarningList.empty()){
         logfile<<"WARNINGS\n";
         fr(i,0,WarningList.size()){
@@ -395,6 +413,8 @@ void write_list(){
     }
     for(auto &it : Line_Info){
         int lineNo = it.first;
+        // Skip lines with no label and no instruction (comment-only or blank)
+        if (it.second.first == 0 && it.second.second == 0) continue;
         // Print Address 
         listing_file << setw(8) << setfill('0')<< hex << uppercase<< line_To_address[lineNo]<< "  ";
 
@@ -407,8 +427,13 @@ void write_list(){
         }
         // Reset formatting for text
         listing_file << dec;
-        // Print Source_Line Line 
-        listing_file << Source_Line[lineNo] << "\n";
+        // Print Source_Line without comments
+        string src = Source_Line[lineNo];
+        size_t comment_pos = src.find(';');
+        if (comment_pos != string::npos) {
+            src = src.substr(0, comment_pos);
+        }
+        listing_file << src << "\n";
     }
     listing_file.close();
 }
@@ -424,6 +449,8 @@ void write_obj(){
         if (it.second.second != 1){
             continue;
         }
+        // SET doesn't emit object code
+        if (instruction[lineNo].first == "SET") continue;
         // Get hex string 
         string hexcode = Object_Code[lineNo];
 

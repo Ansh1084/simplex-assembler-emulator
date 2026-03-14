@@ -7,7 +7,7 @@ EMU = emulator
 # ==========================
 # CHANGE THIS LINE ONLY
 # ==========================
-TEST_DIR = successful_test
+TEST_DIR = tests/test1.asm
 # TEST_DIR = failure
 # TEST_DIR = Tests
 
