@@ -167,19 +167,19 @@ void Pass_One(string line, int num){
     Line_Info[num] = {0, 0};
     if (!line.empty()){
         // detect Line_Label
-        bool label_detect=0;
-        int colon_pos = -1;
-        fr(i,0,line.size()){
-            if (line[i] == ':'){
-                colon_pos = i;
-                label_detect=1;
-                break;
+        while (true) {
+            int colon_pos = -1;
+            fr(i,0,line.size()){
+                if (line[i] == ':'){
+                    colon_pos = i;
+                    break;
+                }
             }
-        }
-        if(label_detect){
-            string lab=line.substr(0,colon_pos);
+            if(colon_pos == -1) break;   // no more labels
+            string lab = line.substr(0, colon_pos);
             line_To_address[num] = pc;
-            lab=trim(lab);
+            lab = trim(lab);
+
             if(lab.empty()){
                 ErrorList.push_back({num, "INVALID LABEL NAME"});
             }
@@ -196,10 +196,13 @@ void Pass_One(string line, int num){
                     Line_Info[num].first = 1;
                 }
             }
-            // Remove Line_Label part
-            line = line.substr(colon_pos+1);
+
+            // remove processed label
+            line = line.substr(colon_pos + 1);
             line = trim(line);
-            if (line.empty()){
+
+            if(line.empty()){
+                line_To_address[num]=pc;
                 return;
             }
         }
@@ -380,7 +383,30 @@ void print_warnings(){
         }
     }
 }
+void write_symbol_table(string filename){
+    ofstream symfile(filename + ".sym");
 
+    if(!symfile.is_open()){
+        cout<<"ERROR: Cannot open symbol table file\n";
+        return;
+    }
+
+    symfile<<"--------------------------------\n";
+    symfile<<"        SYMBOL TABLE\n";
+    symfile<<"--------------------------------\n";
+    symfile<<"LABEL\t\tADDRESS\n";
+    symfile<<"--------------------------------\n";
+
+    for(auto &it : symbolTable){
+        symfile << left << setw(15) << it.first;
+        symfile << right << setw(8) << setfill('0') << hex << uppercase << it.second << endl;
+        symfile << setfill(' ');
+    }
+
+    symfile<<"--------------------------------\n";
+
+    symfile.close();
+}
 void write_log(){
     string s=filename + ".log";
     ofstream logfile(s);
@@ -500,7 +526,7 @@ int main(int argu_cnt, char *argv[]){
     }
 
     file_pointer.close();
-
+    write_symbol_table(filename);
     // PASS TWO()
     Pass_Two();
     // Detect unused labels

@@ -14,6 +14,7 @@ typedef pair<int, int> pii;
 #endif
 #define fr(i, a, b) for (size_t i = a; i < b; ++i)
 
+
 const int MEMORY_SIZE = 2*1e5; 
 //  Registers 
 int32_t REG_A = 0;
@@ -95,14 +96,29 @@ int main(int argc, char* argv[]){
         else
             filename = arg;
     }
-    if (isa) {
-        cout << "Supported Instructions:\n";
-        cout << "ldc adc ldl stl ldnl stnl\n";
-        cout << "add sub shl shr\n";
-        cout << "adj a2sp sp2a\n";
-        cout << "call return\n";
-        cout << "brz brlz br\n";
-        cout << "HALT\n";
+    if (isa){
+        cout << "Instruction Set Architecture\n\n";
+        cout << "Instruction  Opcode  Operand\n";
+        cout << "--------------------------------\n";
+        cout << "ldc        0       value\n";
+        cout << "adc        1       value\n";
+        cout << "ldl        2       offset\n";
+        cout << "stl        3       offset\n";
+        cout << "ldnl       4       offset\n";
+        cout << "stnl       5       offset\n";
+        cout << "add        6       none\n";
+        cout << "sub        7       none\n";
+        cout << "shl        8       none\n";
+        cout << "shr        9       none\n";
+        cout << "adj        10      value\n";
+        cout << "a2sp       11      none\n";
+        cout << "sp2a       12      none\n";
+        cout << "call       13      label\n";
+        cout << "return     14      none\n";
+        cout << "brz        15      label\n";
+        cout << "brlz       16      label\n";
+        cout << "br         17      label\n";
+        cout << "HALT       18      none\n";
         return 0;
     }
     if (filename.empty()){
