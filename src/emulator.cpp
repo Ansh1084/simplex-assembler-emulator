@@ -53,9 +53,7 @@ void memory_dump(string filename){
         cout<<"Error creating memory dump file"<<endl;
         return;
     }
-
     memdump << "MEMORY (First 8000 Words)\n\n";
-
     fr(i,0,8000){
         // Print address at start of every row
         if(i%8==0){
@@ -68,7 +66,6 @@ void memory_dump(string filename){
             memdump<<"\n";
         }
     }
-
     memdump << "\n\nREGISTERS \n\n";
     memdump << "REG_A      = " <<REG_A<<endl;
     memdump << "REG_B      = " <<REG_B<<endl;
@@ -76,85 +73,87 @@ void memory_dump(string filename){
     memdump << "STACK_POINT= " <<STACK_POINT<<endl;
     memdump.close();
 }
-int main(int argc, char* argv[]){
-    string filename;
+
+struct Options {
     bool trace = false;
     bool before = false;
     bool after = false;
     bool isa = false;
-    // Parse command line args
-    for (int i = 1; i < argc; i++) {
+    string filename;
+};
+
+Options parse_args(int argc, char* argv[]){
+    Options opt;
+    fr(i,1,argc){
         string arg = argv[i];
-        if (arg == "-trace")
-            trace = true;
-        else if (arg == "-before")
-            before = true;
-        else if (arg == "-after")
-            after = true;
-        else if (arg == "-isa")
-            isa = true;
-        else
-            filename = arg;
+        if (arg == "-trace") opt.trace = true;
+        else if (arg == "-before") opt.before = true;
+        else if (arg == "-after") opt.after = true;
+        else if (arg == "-isa") opt.isa = true;
+        else opt.filename = arg;
     }
-    if (isa){
-        cout << "Instruction Set Architecture\n\n";
-        cout << "Instruction  Opcode  Operand\n";
-        cout << "--------------------------------\n";
-        cout << "ldc        0       value\n";
-        cout << "adc        1       value\n";
-        cout << "ldl        2       offset\n";
-        cout << "stl        3       offset\n";
-        cout << "ldnl       4       offset\n";
-        cout << "stnl       5       offset\n";
-        cout << "add        6       none\n";
-        cout << "sub        7       none\n";
-        cout << "shl        8       none\n";
-        cout << "shr        9       none\n";
-        cout << "adj        10      value\n";
-        cout << "a2sp       11      none\n";
-        cout << "sp2a       12      none\n";
-        cout << "call       13      label\n";
-        cout << "return     14      none\n";
-        cout << "brz        15      label\n";
-        cout << "brlz       16      label\n";
-        cout << "br         17      label\n";
-        cout << "HALT       18      none\n";
-        return 0;
-    }
-    if (filename.empty()){
-        cout << "Usage: ./emulator [options] file.o\n";
-        return 1;
-    }
-    // LOAD OBJECT FILE (Binary) 
+    return opt;
+}
+
+void print_isa(){
+    cout<<"Instruction Set Architecture\n\n";
+    cout<<"Instruction  Opcode  Operand\n";
+    cout<<"--------------------------------\n";
+    cout<<"ldc        0       value\n";
+    cout<<"adc        1       value\n";
+    cout<<"ldl        2       offset\n";
+    cout<<"stl        3       offset\n";
+    cout<<"ldnl       4       offset\n";
+    cout<<"stnl       5       offset\n";
+    cout<<"add        6       none\n";
+    cout<<"sub        7       none\n";
+    cout<<"shl        8       none\n";
+    cout<<"shr        9       none\n";
+    cout<<"adj        10      value\n";
+    cout<<"a2sp       11      none\n";
+    cout<<"sp2a       12      none\n";
+    cout<<"call       13      label\n";
+    cout<<"return     14      none\n";
+    cout<<"brz        15      label\n";
+    cout<<"brlz       16      label\n";
+    cout<<"br         17      label\n";
+    cout<<"HALT       18      none\n";
+}
+
+bool load_object(const string& filename, int &program_size){
     ifstream objfile(filename, ios::binary);
     if (!objfile){
         cout<<"ERROR: FILE CANNOT BE OPENED"<<endl;
-        return 0;
+        return false;
     }
     int index=0;
-    while (objfile.read(reinterpret_cast<char*>(&MEMORY[index]), sizeof(int32_t))) {
-        if (index>=MEMORY_SIZE) {
-            cout<<"PROGRAM TOO LARGE\n";
+    int32_t value;
+    while (objfile.read((char*)&value, sizeof(value))) {
+        if (index >= MEMORY_SIZE) {
+            cout << "PROGRAM TOO LARGE\n";
             break;
         }
-        index++;
+        MEMORY[index++] = value;
     }
     objfile.close();
-    int PROGRAM_SIZE = index; // number of words loaded
-    ORIGINAL = STACK_POINT;
+    program_size = index;
+    return true;
+}
 
+void reset_machine(){
+    ORIGINAL = STACK_POINT;
     REG_A = 0;
     REG_B = 0;
     PROG_CNT = 0;
     STACK_POINT = ORIGINAL;
-    if(before){
-        memory_dump(filename);
-    }
-    // Execution
-    PROG_CNT = 0;
     RUNNING = true;
+}
+
+int execute(const string& filename, int PROGRAM_SIZE, const Options& opt){
+    if(opt.before) memory_dump(filename);
+    reset_machine();
     // Mnemonic lookup table
-    const char* mnemonics[] = {
+    const char* mnemonics[]={
         "ldc", "adc", "ldl", "stl", "ldnl", "stnl",
         "add", "sub", "shl", "shr",
         "adj", "a2sp", "sp2a",
@@ -162,47 +161,51 @@ int main(int argc, char* argv[]){
         "brz", "brlz", "br",
         "HALT"
     };
-    const int NUM_MNEMONICS = 19;
-
     int instruction_count = 0;
     bool infinite_loop = false;
     while(RUNNING){
-        if (instruction_count > 100000) {
-            infinite_loop = true;
+        if(instruction_count > 100000){
+            // Write log file with warning of infinte loop
+            string base="";
+            for (char c : filename) {
+                if (c=='.') break;
+                base+=c;
+            }
+            string logname=base+".log";
+            ofstream logfile(logname);
+            if(logfile){
+                logfile << "Infinite loop detected (more than 100000 instructions executed, core dumped)" << '\n';
+                logfile.close();
+            }
             break;
         }
-        if (PROG_CNT < 0 || PROG_CNT >= MEMORY_SIZE) {
-            cout << "PC OUT OF BOUNDS\n";
+        if(PROG_CNT < 0 || PROG_CNT >= MEMORY_SIZE){
+            cout<<"PC OUT OF BOUNDS\n";
             break;
         }
-        if (PROG_CNT >= PROGRAM_SIZE) {
+        if(PROG_CNT >= PROGRAM_SIZE){
             RUNNING = false;
             break;
         }
         int32_t instruction = MEMORY[PROG_CNT];
-
-        int opcode  = instruction & 0xFF;
-        int32_t operand = instruction>>8;   // signed shift
+        int opcode = instruction & 0xFF;
+        int32_t operand = instruction >> 8;   // signed shift
         PROG_CNT++;  // move to next instruction
         instruction_count++;
-        if (trace) {
+        if(opt.trace){
             cout << "PC: " << integer_to_hexa(PROG_CNT - 1, 8)
                  << "   SP: " << integer_to_hexa(STACK_POINT, 8)
                  << "   A: " << integer_to_hexa(REG_A, 8)
                  << "   B: " << integer_to_hexa(REG_B, 8)
                  << "          ";
-            if (opcode >= 0 && opcode < NUM_MNEMONICS) {
-                cout << mnemonics[opcode];
-                // Instructions that use an operand
-                if (opcode <= 5 || opcode == 10 || opcode == 13 || (opcode >= 15 && opcode <= 17) || opcode == 18) {
-                    cout << " " << operand;
-                }
-            } else {
-                cout << "??? " << opcode;
+            cout << mnemonics[opcode];
+            // Instructions that use an operand
+            if(opcode<=5 || opcode==10 || opcode==13 || (opcode>=15 && opcode<=17) || opcode==18){
+                cout << " " << operand;
             }
             cout << endl;
         }
-        switch (opcode) {
+        switch(opcode){
             case 0:  // ldc
                 REG_B = REG_A;
                 REG_A = operand;
@@ -328,31 +331,23 @@ int main(int argc, char* argv[]){
                 RUNNING = false;
         }
     }
-
 // Memory dump after
-    if (after) {
-        memory_dump(filename);
-    }
+    if(opt.after) memory_dump(filename);
     cout << instruction_count << " number of instructions executed\n";
-
-    // Write log file with warnings
-    string base = "";
-    for (char c : filename) {
-        if (c == '.') break;
-        base += c;
-    }
-    string logname = base + ".log";
-    ofstream logfile(logname);
-    if (logfile) {
-        logfile << "WARNINGS" << '\n';
-        if (infinite_loop) {
-            logfile << "Infinite loop detected (more than 100000 instructions executed, core dumped)" << '\n';
-        }
-        if (!infinite_loop) {
-            logfile << "None" << '\n';
-        }
-        logfile.close();
-    }
-
     return 0;
+}
+
+int main(int argc, char* argv[]){
+    Options opt = parse_args(argc, argv);
+    if (opt.isa){
+        print_isa();
+        return 0;
+    }
+    if (opt.filename.empty()){
+        cout << "Usage: ./emulator [options] file.o\n";
+        return 1;
+    }
+    int program_size = 0;
+    if (!load_object(opt.filename, program_size)) return 1;
+    return execute(opt.filename, program_size, opt);
 }
