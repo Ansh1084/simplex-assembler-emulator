@@ -37,7 +37,7 @@ string integer_to_hexa(int32_t number, size_t width){
     reverse(hexResult.begin(), hexResult.end());
     return hexResult;
 }
-void memory_dump(string filename){
+void memory_dump(string filename,string tag){
     string base="";
     for(char c:filename){
         if(c=='.'){
@@ -45,7 +45,7 @@ void memory_dump(string filename){
         }   
         base+=c;
     }
-    base+="_memdump.txt";
+    base+=" "+tag+"_memdump.txt";
     ofstream memdump(base);
     if (!memdump){
         cout<<"Error creating memory dump file"<<endl;
@@ -125,8 +125,8 @@ void reset_machine(){
     RUNNING=true;
 }
 int execute(const string& filename, int PROGRAM_SIZE, bool trace, bool before, bool after){
-    if(before) memory_dump(filename);
     reset_machine();
+    if(before) memory_dump(filename,"before");
     // Mnemonic lookup table
     const char* mnemonics[]={
         "ldc", "adc", "ldl", "stl", "ldnl", "stnl",
@@ -149,7 +149,7 @@ int execute(const string& filename, int PROGRAM_SIZE, bool trace, bool before, b
             string logname=base+".log";
             ofstream logfile(logname);
             if(logfile){
-                logfile<<"Infinite loop detected (more than 100000 instructions executed, core dumped)" << '\n';
+                logfile<<"Warning: Infinite loop detected (more than 100000 instructions executed, core dumped)" << '\n';
                 logfile.close();
             }
             break;
@@ -307,7 +307,7 @@ int execute(const string& filename, int PROGRAM_SIZE, bool trace, bool before, b
         }
     }
 // Memory dump after
-    if(after)memory_dump(filename);
+    if(after)memory_dump(filename,"after");
     cout<<instruction_count<<" number of instructions executed\n";
     return 0;
 }

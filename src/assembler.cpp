@@ -65,21 +65,21 @@ bool is_valid_file(int arg_cnt, vector<string>arg){
     }
     return true;
 }
-bool valid_label(string Line_Label){
-    if (Line_Label.empty()){
+bool valid_label(string label){
+    if(label.empty()) return false;
+
+    // First character: letter
+    if(!(isalpha(label[0]))){
         return false;
     }
-    // First character must be letter
-    if (!isalpha(Line_Label[0])){
-        return false;
-    }
-    // Remaining characters
-    size_t n=Line_Label.size();
-    fr(i,1,n){
-        if(!isalnum(Line_Label[i])){
+
+    // Remaining characters: letter, digit
+    for(size_t i=1;i<label.size();i++){
+        if(!(isalnum(label[i]))){
             return false;
         }
     }
+
     return true;
 }
 string trim(string &s) {
@@ -278,28 +278,32 @@ void Pass_One(string line, int num){
         else{
             instruction[num].second = INSTRUCTION[1];
         }
-        if(INSTRUCTION[0]!="SET"){
-            pc++;
+        if(INSTRUCTION[0]=="SET"){
+            if(INSTRUCTION.size()==2&&is_valid_number(INSTRUCTION[1])) {
+                // Assign the actual value to the label instead of the PC
+                if(!Line_Label[num].empty()) {
+                    symbolTable[Line_Label[num]] = (int32_t)strtol(INSTRUCTION[1].c_str(), NULL, 0);
+                }
+            } 
+            else{
+                ErrorList.push_back({num, "SET requires a numeric operand"});
+            }
+        }
+        else{
+            pc++; 
         }
     }
 }
 void Pass_Two(){
-    // Remove SET labels from symbol table so they're only available after definition
-    for(auto& it: Line_Info){
-        int lineNo = it.first;
-        if(it.second.second != 1) continue;
-        if(instruction[lineNo].first == "SET"){
-            if(Line_Label[lineNo] != ""){
-                symbolTable.erase(Line_Label[lineNo]);
-            }
-        }
-    }
     // Process all instructions in order
     for(auto& it: Line_Info){
         int lineNo=it.first;
 
         if(it.second.second!=1) continue;
         string command = instruction[lineNo].first;
+        if(command=="SET"){
+            continue; 
+        }
         int opcode =Opcode_Table[command].first;
         int operandType =Opcode_Table[command].second;
         int32_t operand=0;
@@ -308,7 +312,7 @@ void Pass_Two(){
         }
         else if(operandType==1){
             string op = instruction[lineNo].second;
-            if (symbolTable.find(op)!=symbolTable.end()){
+            if(symbolTable.find(op)!=symbolTable.end()){
                 operand = symbolTable[op];
                 LabelUsed[op] = true;
             }
@@ -394,7 +398,7 @@ void write_symbol_table(string filename){
     symfile<<"--------------------------------\n";
     symfile<<"        SYMBOL TABLE\n";
     symfile<<"--------------------------------\n";
-    symfile<<"LABEL\t\tADDRESS\n";
+    symfile<<"LABEL\t\tADDRESS/VALUE\n";
     symfile<<"--------------------------------\n";
 
     for(auto &it : symbolTable){
@@ -434,35 +438,46 @@ void write_log(){
     logfile.close();
 }
 void write_list(){
-    string s = filename + ".lst";
+    string s=filename+".lst";
     ofstream listing_file(s);
     if(!listing_file){
-        cout << "ERROR: Unable to create listing file\n";
+        cout<<"ERROR: Unable to create listing file\n";
         return;
     }
-    for(auto &it : Line_Info){
-        int lineNo = it.first;
-        // Skip lines with no label and no instruction (comment-only or blank)
-        if (it.second.first == 0 && it.second.second == 0) continue;
-        // Print Address 
-        listing_file << setw(8) << setfill('0')<< hex << uppercase<< line_To_address[lineNo]<< "  ";
+    // Headings
+    listing_file<<left<<setw(10)<<"Address"<<setw(14)<<"Machine Code"<<"Source Code\n";
+    listing_file<<left<<setw(10)<<"-------"<<setw(14)<<"------------"<<"-----------\n";
 
-        // Print Machine Code 
-        if(it.second.second == 1){
-            listing_file << setw(8) << setfill('0')<< hex << uppercase<< Object_Code[lineNo]<< "  ";
+    for(auto &it:Line_Info){
+        int lineNo=it.first;
+        if(it.second.first==0 && it.second.second==0) continue;
+
+        string mnemonic=instruction[lineNo].first;
+
+        // Address Column - Now always shown
+        listing_file<<right<<setw(8)<<setfill('0')<<hex<<uppercase<<line_To_address[lineNo]<<"  ";
+
+        // Machine Code Column
+        if(it.second.second==1){
+            if(mnemonic=="SET"){
+                // Keep Machine Code blank for SET
+                listing_file<<setfill(' ')<<setw(14)<<"";
+            }
+            else{
+                listing_file<<setfill(' ')<<left<<setw(12)<<Object_Code[lineNo]<<"  ";
+            }
         }
         else{
-            listing_file<< "        "<< "  ";
+            listing_file<<setfill(' ')<<setw(14)<<"";
         }
-        // Reset formatting for text
-        listing_file << dec;
-        // Print Source_Line without comments
-        string src = Source_Line[lineNo];
-        size_t comment_pos = src.find(';');
-        if (comment_pos != string::npos) {
-            src = src.substr(0, comment_pos);
+
+        listing_file<<dec<<setfill(' ');
+        string src=Source_Line[lineNo];
+        size_t comment_pos=src.find(';');
+        if(comment_pos!=string::npos){
+            src=src.substr(0, comment_pos);
         }
-        listing_file << src << "\n";
+        listing_file<<src<<"\n";
     }
     listing_file.close();
 }
@@ -486,7 +501,7 @@ void write_obj(){
         // Convert hex string to 32-bit integer
         uint32_t machine = stoul(hexcode, nullptr, 16);
         // Write 4 bytes to file
-        objfile.write(reinterpret_cast<char*>(&machine), sizeof(uint32_t));
+        objfile.write((char*)&machine, 4);    
     }
     objfile.close();
 }

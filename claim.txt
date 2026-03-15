@@ -2,7 +2,10 @@
 
 Author: Ansh Goyal
 Roll No: 2401CS46
-
+Declaration of Authorship
+The contents of this file, claims, relate to the CS2206 miniproject 
+submission for the Department of Computer Science and Engineering at IIT Patna.
+-------------------------------------------------------------------------------------------------------------------------------------------------
 Assembler – SIMPLEX
 
 1. Implements a two-pass assembler:
@@ -53,6 +56,7 @@ Assembler – SIMPLEX
 15. Generates a binary object file (.o) containing the sequence of 32-bit machine words.
 
 16. Skips blank lines and comment-only lines during assembly while preserving source line numbering for diagnostics.
+----------------------------------------------------------------------------------------------------------------------------------------------------
 
 Emulator – SIMPLEX
 
