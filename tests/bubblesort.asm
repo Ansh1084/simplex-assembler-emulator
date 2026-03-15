@@ -1,7 +1,7 @@
-; --- Entry Point ---
+;  Entry Point 
 br start        ; Jump over data to the start of the code
 
-; -------- DATA --------
+;  DATA 
 N:      data 5
 i:      data 0
 j:      data 0
@@ -15,7 +15,7 @@ arr:    data 94
         data 32
         data 7
 
-; -------- CODE --------
+;  CODE 
 start:
 
 ; i = N-1

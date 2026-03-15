@@ -1,7 +1,7 @@
-; --- Entry Point ---
+; Entry Point 
 br start
 
-; -------- DATA --------
+;  DATA 
 N:      data 5          ; Size of array
 i:      data 0          ; Loop counter
 is_srt: data 0          ; Initially 0
@@ -11,7 +11,7 @@ arr:    data 10         ; arr[0]
         data 40         ; arr[3]
         data 50         ; arr[4]
 
-; -------- CODE --------
+;  CODE 
 start:
 ; Handle edge case: N < 2 is always sorted
 ldc N

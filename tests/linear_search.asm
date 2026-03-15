@@ -1,7 +1,7 @@
-; --- Entry Point ---
+;  Entry Point 
 br start
 
-; -------- DATA --------
+;  DATA 
 N:      data 5          ; Number of elements
 target: data 45         ; The value we are looking for
 result: data -1         ; Final index (-1 means not found)
@@ -12,7 +12,7 @@ arr:    data 96
         data 38
         data 46
 
-; -------- CODE --------
+; CODE 
 start:
 ; i = 0
 ldc 0
